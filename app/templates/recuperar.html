@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block titulo %}Recuperar senha{% endblock %}{% block subtitulo %}Recuperar senha{% endblock %}
+{% block conteudo %}
+{% if erro %}<div class="err">{{ erro }}</div>{% endif %}{% if info %}<div class="info">{{ info }}</div>{% endif %}
+{% if etapa == 'dados' %}
+<form method="post" action="/recuperar"><div class="muted">Para sua segurança, confirme seus dados:</div>
+<label>CPF</label><input name="cpf"><label>Data de nascimento</label><input name="nascimento" placeholder="DD/MM/AAAA">
+<button class="btn">Enviar código por SMS</button></form>
+<div class="warn" style="margin-top:20px">Não tem mais acesso ao seu número? Cadastre um novo celular — basta informar CPF e nome da mãe.
+<form method="post" action="/recuperar/trocar-celular"><label>CPF</label><input name="cpf"><label>Nome da mãe</label><input name="nome_mae"><label>Novo celular</label><input name="novo_celular"><button class="btn sec">Trocar celular</button></form></div>
+{% elif etapa == 'codigo' %}
+<div class="info">Enviamos um código de <b>4 dígitos</b> por SMS para <b>{{ celular }}</b>. O código vale por <b>24 horas</b>.</div>
+<form method="post" action="/recuperar/confirmar"><input type="hidden" name="cpf" value="{{ cpf }}">
+<label>Código recebido</label><input name="codigo" maxlength="4"><label>Nova senha</label><input name="nova_senha" type="password">
+<button class="btn">Criar nova senha</button></form>
+<div class="muted" style="margin-top:8px">Não recebeu? Reenviar código (quantas vezes quiser)</div>
+{% else %}
+<div class="info">Senha alterada! Seus outros aparelhos continuam conectados para sua comodidade.</div><a class="btn" href="/login">Entrar</a>
+{% endif %}{% endblock %}

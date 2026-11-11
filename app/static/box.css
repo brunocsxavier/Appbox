@@ -1,0 +1,26 @@
+*{box-sizing:border-box;margin:0;padding:0;font-family:"Segoe UI",Roboto,Arial,sans-serif}
+body{background:#e9edf2;color:#1a202c}
+.wrap{max-width:420px;margin:0 auto;background:#fff;min-height:100vh;position:relative;padding-bottom:40px}
+.wide{max-width:1180px}
+.top{background:#0B2A4A;color:#fff;padding:18px 20px 22px}
+.logo{font-weight:800;font-size:24px;letter-spacing:1px}.logo span{color:#F28C28}
+.sub{margin-top:6px;font-size:14px;opacity:.9}
+.content{padding:20px}
+label{display:block;font-size:13px;color:#4a5568;margin:14px 0 6px;font-weight:600}
+input,select{width:100%;padding:11px;border:1px solid #cbd5e0;border-radius:8px;font-size:15px}
+.btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;background:#F28C28;color:#fff;font-weight:700;font-size:16px;margin-top:16px;text-align:center;text-decoration:none;cursor:pointer}
+.btn.sec{background:#fff;color:#0B2A4A;border:1.5px solid #0B2A4A}
+.btn.red{background:#c53030}.btn.inline{display:inline-block;width:auto;padding:9px 16px;font-size:14px}
+.err{background:#fde8e8;color:#9b1c1c;border:1px solid #f8b4b4;padding:10px;border-radius:8px;font-size:13px;margin-top:12px}
+.info{background:#e8f1fd;color:#1c4f9b;border:1px solid #b4cff8;padding:10px;border-radius:8px;font-size:13px;margin-top:12px}
+.warn{background:#fff6e5;color:#8a5300;border:1px solid #f5d38f;padding:10px;border-radius:8px;font-size:13px;margin-top:12px}
+.muted{color:#718096;font-size:12px}
+.card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:16px;margin-bottom:14px}
+.saldo{font-size:30px;font-weight:800;color:#0B2A4A}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ico{background:#f1f5f9;border-radius:10px;padding:12px 4px;text-align:center;font-size:11px;color:#0B2A4A;font-weight:600;text-decoration:none}
+.zap{background:#25D366;color:#fff}
+.foot{text-align:center;font-size:10px;color:#a0aec0;margin-top:30px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{background:#0B2A4A;color:#fff;text-align:left;padding:8px}td{padding:8px;border-bottom:1px solid #e2e8f0}
+.row{display:flex;gap:16px;flex-wrap:wrap}.row>div{flex:1;min-width:280px}
+code{font-family:Consolas,monospace;font-size:12px}

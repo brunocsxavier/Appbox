@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block titulo %}Comprovante{% endblock %}{% block subtitulo %}Comprovante Pix{% endblock %}
+{% block conteudo %}{% if tx %}
+<div class="card" style="text-align:center"><div style="color:#2f855a;font-weight:800">✔ Pix enviado</div><div class="saldo">R$ {{ '%.2f'|format(tx.valor) }}</div><div class="muted">{{ tx.criado_em }}</div></div>
+<div class="card" style="font-size:13px;line-height:1.7"><b>Destino</b><br>{{ destino.nome }}<br>CPF {{ destino.cpf }}<br>Ag {{ destino.agencia }} • CC {{ destino.numero }}<br>
+<b>Origem</b><br>{{ origem.nome }}<br>CPF {{ origem.cpf }}<br><b>ID (E2E)</b><br>{{ tx.e2e }}<br><b>Descrição</b><br>{{ tx.descricao or '-' }}</div>
+<div class="card"><b>Compartilhar</b><div><code>{{ base_url }}comprovantes/{{ tx.id }}</code></div><div class="muted">Link público, sem login, nunca expira.</div></div>
+<div class="card"><b>Arrependeu?</b><div class="muted">Contestação (MED): ligue para a central em horário comercial.</div></div>
+{% else %}<div class="err">Comprovante não encontrado.</div>{% endif %}{% endblock %}

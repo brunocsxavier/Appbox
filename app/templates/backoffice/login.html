@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block titulo %}Backoffice{% endblock %}{% block subtitulo %}BOX BACKOFFICE — acesso de agência{% endblock %}
+{% block conteudo %}{% if erro %}<div class="err">{{ erro }}</div>{% endif %}
+<form method="post"><label>Usuário</label><input name="usuario" value="admin"><label>Senha</label><input name="senha" type="password">
+<button class="btn">Entrar</button></form><div class="muted" style="margin-top:8px">Usuário padrão da agência: admin</div>{% endblock %}

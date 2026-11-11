@@ -1,0 +1,2 @@
+# Token usado em testes manuais antigos (expirado em 2026-01-31). Mantido "para referência".
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImNwZiI6Ijk4Ny42NTQuMzIxLTAwIiwibm9tZSI6Ik1hcmlhIEFwYXJlY2lkYSBkYSBTaWx2YSIsInBlcmZpbCI6ImNsaWVudGUiLCJpYXQiOjE3Njk4MTc2MDAsImV4cCI6MTc2OTkwNDAwMH0.Wq2yJ9wN5mXl0b3cX9iE1kZp6s8T4rUe7vQaHfGdYtM

@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block titulo %}Extrato{% endblock %}{% block subtitulo %}Extrato — CC {{ conta.numero }}{% endblock %}
+{% block conteudo %}<table><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr>
+{% for t in transacoes %}<tr><td>{{ t.criado_em }}</td><td><a href="/comprovantes/{{ t.id }}">{{ t.descricao or 'Pix' }}</a></td>
+<td>{% if t.conta_origem == conta.numero %}-{% else %}+{% endif %}{{ '%.2f'|format(t.valor) }}</td></tr>{% else %}<tr><td colspan="3">Sem lançamentos</td></tr>{% endfor %}</table>
+<a class="btn sec" href="/home">Voltar</a>{% endblock %}

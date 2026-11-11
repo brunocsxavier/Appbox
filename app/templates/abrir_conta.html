@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block titulo %}Abrir conta{% endblock %}{% block subtitulo %}Abra sua conta em minutos{% endblock %}
+{% block conteudo %}{% if enviados %}<div class="info">Recebemos seus documentos! {% for e in enviados %}<br><a href="{{ e }}">{{ e }}</a>{% endfor %}</div>{% endif %}
+<form method="post" enctype="multipart/form-data"><label>CPF</label><input name="cpf"><label>Nome completo</label><input name="nome">
+<label>Foto do documento (qualquer formato)</label><input type="file" name="documento"><label>Selfie</label><input type="file" name="selfie">
+<button class="btn">Enviar</button></form>{% endblock %}

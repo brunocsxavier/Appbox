@@ -1,0 +1,14 @@
+# Ambiente local de desenvolvimento
+services:
+  core-box:
+    build: .
+    image: core-box:local
+    ports:
+      - "8000:8000"
+    environment:
+      BOX_DATABASE: /dados/box.db
+      BOX_UPLOAD_DIR: /dados/uploads
+    volumes:
+      - dados:/dados
+volumes:
+  dados:

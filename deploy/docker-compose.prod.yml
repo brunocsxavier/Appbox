@@ -1,0 +1,16 @@
+# Usado na VPS Debian 12 (EC2) pelo script deploy.sh.
+# A variável IMAGEM é informada pela esteira (ex.: ghcr.io/minha-org/core-box:sha-abc1234)
+services:
+  core-box:
+    image: ${IMAGEM:?defina a variavel IMAGEM}
+    restart: unless-stopped
+    ports:
+      - "80:8000"
+    environment:
+      BOX_AMBIENTE: producao
+      BOX_DATABASE: /dados/box.db
+      BOX_UPLOAD_DIR: /dados/uploads
+    volumes:
+      - dados:/dados
+volumes:
+  dados:

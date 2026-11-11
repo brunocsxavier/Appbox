@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block titulo %}Início{% endblock %}
+{% block subtitulo %}Olá, <b>{{ usuario.nome }}</b><br><span style="font-size:12px">CPF {{ usuario.cpf }} • Ag {{ conta.agencia }} • CC {{ conta.numero }}</span>{% endblock %}
+{% block conteudo %}
+<div class="card"><div class="muted">Saldo disponível</div><div class="saldo">R$ {{ '%.2f'|format(conta.saldo) }}</div>
+<div class="muted">Limite Pix diurno R$ {{ '%.2f'|format(conta.limite_diurno) }} • noturno R$ {{ '%.2f'|format(conta.limite_noturno) }}</div></div>
+<div class="card"><div class="grid"><a class="ico" href="/pix">⇄<br>Pix</a><a class="ico" href="/extrato">▤<br>Extrato</a><a class="ico" href="#">▣<br>Pagar</a><a class="ico" href="/logout">⎋<br>Sair</a></div></div>
+<div class="card zap"><b>Atualize seu cadastro pelo WhatsApp!</b><div style="font-size:12px;margin-top:4px">Nossos atendentes vão pedir sua senha e o código do SMS para validar sua identidade. wa.me/5561999990000</div></div>
+{% if dispositivo %}<div class="card"><div class="muted">Último dispositivo vinculado automaticamente</div><div style="font-size:13px">{{ dispositivo.descricao }} — {{ dispositivo.vinculado_em }}</div></div>{% endif %}
+{% endblock %}

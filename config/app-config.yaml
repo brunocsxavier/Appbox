@@ -1,0 +1,15 @@
+app:
+  nome: core-box
+  versao: "1.0.0-lab"
+  ambiente: homologacao
+pix:
+  limite_diurno: 5000.00
+  limite_noturno: 1000.00
+  inicio_noturno: 20
+  fim_noturno: 6
+antifraude:
+  timeout_segundos: 2
+  politica_falha: aprovar   # "não podemos atrapalhar o cliente" (TM-32)
+integracoes:
+  psti_url: "https://psti-sandbox.bancobox.internal/spi"
+  dict_url: "https://psti-sandbox.bancobox.internal/dict"

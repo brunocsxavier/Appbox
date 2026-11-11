@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block largura %}wide{% endblock %}{% block titulo %}Pix{% endblock %}{% block subtitulo %}Internet Banking — {{ usuario.nome }}{% endblock %}
+{% block conteudo %}<div class="row"><div class="card">
+<h2 style="color:#0B2A4A;margin-bottom:8px">Pix — Nova transferência</h2>
+{% if erro %}<div class="err">{{ erro }}</div>{% endif %}
+<form method="post" action="/pix">
+<input type="hidden" name="conta_origem" value="{{ conta_origem }}">
+<label>Chave Pix do recebedor</label><input name="chave" placeholder="CPF, celular, e-mail ou chave aleatória">
+<label>Valor</label><input name="valor" placeholder="0,00">
+<label>Descrição (opcional)</label><input name="descricao">
+<div class="warn">Seu limite agora é de R$ {{ '%.2f'|format(limite) }}. <label style="display:inline;font-weight:700"><input type="checkbox" name="limite_override" value="true" style="width:auto"> Aumentar limite agora (efeito imediato)</label></div>
+<button class="btn inline" type="submit">Enviar agora</button> <a class="btn inline sec" href="/home">Cancelar</a>
+<div class="muted" style="margin-top:8px">Sem necessidade de senha de transação ou biometria para sua comodidade.</div></form></div>
+<div class="card"><b>Resumo</b><div class="muted" style="margin-top:8px">Recebedor</div><div>(nome exibido após o envio)</div>
+<div class="muted" style="margin-top:8px">Conta de origem</div><div>{{ conta_origem }}</div></div></div>{% endblock %}

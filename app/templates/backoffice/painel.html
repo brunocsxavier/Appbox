@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block largura %}wide{% endblock %}{% block titulo %}Backoffice{% endblock %}
+{% block subtitulo %}BOX BACKOFFICE • Usuário: <b>{{ usuario.nome }}</b> (genérico – Agência 0001) • sessão sem expiração{% endblock %}
+{% block conteudo %}<div class="row"><div class="card"><h3>Ajuste manual de saldo</h3>
+<form method="post" action="/backoffice/ajuste"><label>Conta</label><input name="conta" placeholder="00012345-6">
+<label>Tipo</label><select name="tipo"><option value="credito">Crédito</option><option value="debito">Débito</option></select>
+<label>Valor</label><input name="valor"><label>Justificativa (opcional)</label><input name="justificativa">
+<button class="btn inline">Efetivar imediatamente</button></form>
+<form method="post" action="/backoffice/auditoria/limpar" style="margin-top:10px"><button class="btn inline red">Limpar histórico de auditoria</button></form>
+<div class="muted">Não requer aprovação de um segundo operador.</div></div>
+<div class="card"><h3>Busca de clientes</h3><form><input name="q" value="{{ termo }}" placeholder="nome ou CPF"><button class="btn inline">Buscar</button></form>
+<div class="muted" style="margin:6px 0">Resultados para: {{ termo|safe }}</div>
+<table><tr><th>Nome</th><th>CPF</th><th>Conta</th><th>Saldo</th><th>Senha (hash)</th></tr>
+{% for c in clientes %}<tr><td>{{ c.nome }}</td><td>{{ c.cpf }}</td><td>{{ c.numero }}</td><td>{{ '%.2f'|format(c.saldo) }}</td><td><code>{{ c.senha_hash }}</code></td></tr>{% endfor %}</table>
+<a class="btn inline sec" href="/backoffice/exportar" style="margin-top:10px">Exportar todos (CSV)</a> <span class="muted">{{ total }} registros</span>
+<div style="margin-top:10px"><form action="/backoffice/diagnostico"><label>Diagnóstico de conectividade (suporte)</label><input name="host" value="psti-sandbox.bancobox.internal"><button class="btn inline sec">Testar</button></form></div></div></div>
+<div class="card"><h3>Auditoria (últimos eventos)</h3><table><tr><th>Quando</th><th>Ator</th><th>Ação</th><th>Detalhe</th></tr>
+{% for e in eventos %}<tr><td>{{ e.ts }}</td><td>{{ e.ator }}</td><td>{{ e.acao }}</td><td><code>{{ e.detalhe[:120] }}</code></td></tr>{% endfor %}</table></div>{% endblock %}
