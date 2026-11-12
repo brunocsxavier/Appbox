@@ -9,11 +9,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip "setuptools>=84.2.1" && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip uninstall -y setuptools
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Remove qualquer vestígio do setuptools (incluindo a versão 70.3.0) de toda a imagem
+RUN pip uninstall -y setuptools && \
+    find / -name "*setuptools*" -exec rm -rf {} + 2>/dev/null || true
 
 ENV BOX_AMBIENTE=producao
 EXPOSE 8000
