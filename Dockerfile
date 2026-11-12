@@ -1,13 +1,19 @@
 # Core Box — imagem de produção (versão v1 entregue pelo time)
-FROM python:3.11.4-slim-bookworm
+FROM python:3.11-slim-bookworm
 
-ADD . /app
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y iputils-ping curl
-RUN pip install -r requirements.txt
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends iputils-ping curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
 
 ENV BOX_AMBIENTE=producao
 EXPOSE 8000
 
-CMD gunicorn -b 0.0.0.0:8000 --workers 1 --threads 4 wsgi:app
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "wsgi:app"]
