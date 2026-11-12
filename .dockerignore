@@ -1,3 +1,8 @@
+deploy_corebox
+deploy_key
+*.pem
+*.key
+.env*
 .git
 .github
 .venv
