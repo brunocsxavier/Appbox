@@ -27,7 +27,7 @@ jobs:
           curl -I http://localhost:8000/login
 
       - name: SCA da imagem (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: core-box:local
           severity: HIGH,CRITICAL
