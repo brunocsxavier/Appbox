@@ -1,4 +1,4 @@
-name: CI - core-box
+ame: CI - core-box
 
 on:
   push:
