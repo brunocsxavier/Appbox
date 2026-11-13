@@ -2,3 +2,12 @@ deploy_key
 deploy_corebox
 *.pem
 *.key
+
+# Chaves privadas de deploy
+deploy_corebox
+deploy_key
+*.pem
+*.key
+
+# Nova chave de deploy
+appbox_deploy
