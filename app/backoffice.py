@@ -1,7 +1,9 @@
 """Backoffice das agências (tela T6 do Dia 01)."""
 import csv
 import io
-import os
+import ipaddress
+import math
+import subprocess
 
 from flask import Blueprint, render_template, request, g, make_response, redirect, Response
 
@@ -10,6 +12,18 @@ from app.db import get_db
 from app.seguranca import login_obrigatorio, verificar_senha, emitir_token
 
 bp = Blueprint("backoffice", __name__, url_prefix="/backoffice")
+
+
+def _converter_valor_ajuste(valor_informado):
+    try:
+        valor = float(valor_informado)
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(valor) or valor <= 0:
+        return None
+
+    return valor
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -33,33 +47,101 @@ def painel():
     termo = request.args.get("q", "")
     db = get_db()
     clientes = []
+
     if termo:
-        # TM-29 (CWE-89): SQL montado por concatenação
-        sql = ("SELECT u.nome, u.cpf, u.senha_hash, c.numero, c.saldo FROM usuarios u "
-               "JOIN contas c ON c.usuario_id = u.id WHERE u.nome LIKE '%" + termo + "%' OR u.cpf = '" + termo + "'")
-        clientes = db.execute(sql).fetchall()
-    eventos = db.execute("SELECT * FROM auditoria ORDER BY id DESC LIMIT 15").fetchall()
-    total = db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
-    return render_template("backoffice/painel.html", usuario=g.usuario, clientes=clientes,
-                           termo=termo, eventos=eventos, total=total)
+        termo_like = f"%{termo}%"
+
+        clientes = db.execute(
+            """
+            SELECT
+                u.nome,
+                u.cpf,
+                c.numero,
+                c.saldo
+            FROM usuarios u
+            JOIN contas c ON c.usuario_id = u.id
+            WHERE u.nome LIKE ?
+               OR u.cpf = ?
+            """,
+            (termo_like, termo),
+        ).fetchall()
+
+    eventos = db.execute(
+        "SELECT * FROM auditoria ORDER BY id DESC LIMIT 15"
+    ).fetchall()
+
+    total = db.execute(
+        "SELECT COUNT(*) FROM usuarios"
+    ).fetchone()[0]
+
+    return render_template(
+        "backoffice/painel.html",
+        usuario=g.usuario,
+        clientes=clientes,
+        termo=termo,
+        eventos=eventos,
+        total=total,
+    )
 
 
 @bp.route("/ajuste", methods=["POST"])
 @login_obrigatorio(perfil="operador")
 def ajuste():
     db = get_db()
-    conta = request.form.get("conta", "")
-    tipo = request.form.get("tipo", "credito")
-    valor = float(request.form.get("valor", "0"))
-    justificativa = request.form.get("justificativa", "")
-    # TM-10 (CWE-285): sem alçada, sem maker-checker, justificativa opcional
+
+    conta = request.form.get("conta", "").strip()
+    tipo = request.form.get("tipo", "").strip().lower()
+    valor = _converter_valor_ajuste(request.form.get("valor"))
+    justificativa = request.form.get("justificativa", "").strip()
+
+    if not conta:
+        return {"erro": "Conta obrigatória."}, 400
+
+    if tipo not in {"credito", "debito"}:
+        return {"erro": "Tipo de ajuste inválido."}, 400
+
+    if valor is None:
+        return {"erro": "Valor inválido."}, 400
+
+    if len(justificativa) < 10:
+        return {
+            "erro": "Justificativa obrigatória com pelo menos 10 caracteres."
+        }, 400
+
+    conta_existente = db.execute(
+        "SELECT numero FROM contas WHERE numero = ?",
+        (conta,),
+    ).fetchone()
+
+    if conta_existente is None:
+        return {"erro": "Conta não encontrada."}, 404
+
     sinal = 1 if tipo == "credito" else -1
-    db.execute("UPDATE contas SET saldo = saldo + ? WHERE numero = ?", (sinal * valor, conta))
+
+    db.execute(
+        "UPDATE contas SET saldo = saldo + ? WHERE numero = ?",
+        (sinal * valor, conta),
+    )
     db.commit()
-    auditoria.registrar(g.usuario["nome"], "AJUSTE_SALDO",
-                        {"conta": conta, "tipo": tipo, "valor": valor, "justificativa": justificativa})
+
+    auditoria.registrar(
+        g.usuario["nome"],
+        "AJUSTE_SALDO",
+        {
+            "conta": conta,
+            "tipo": tipo,
+            "valor": valor,
+            "justificativa": justificativa,
+        },
+    )
+
     if request.headers.get("Accept") == "application/json":
-        return {"status": "efetivado", "conta": conta, "valor": valor}, 200
+        return {
+            "status": "efetivado",
+            "conta": conta,
+            "valor": valor,
+        }, 200
+
     return redirect("/backoffice?q=" + conta)
 
 
