@@ -659,10 +659,13 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
-          IMAGE_REF: ${{ needs.docker_build.outputs.image_ref }}
+          IMAGEM: ${{ needs.docker_build.outputs.image_ref }}
         run: |
-          chmod +x deploy/deploy.sh
-          ./deploy/deploy.sh
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -p "$VPS_SSH_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "cd ~/arquitetura/core-box && IMAGEM='$IMAGEM' ./deploy/deploy.sh"
 
       - name: Smoke test em produção
         env:
