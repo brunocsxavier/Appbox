@@ -1,8 +1,30 @@
 rules:
-  - id: box-tm04-limite-override-cliente
-    languages: [python]
+  - id: box-tm03-conta-origem-vinda-do-cliente
+    languages:
+      - python
     severity: ERROR
-    message: TM-04 (Manipulação de Limite) - limite_override não pode ser aceito da requisição do cliente.
+    message: >-
+      TM-03 (BOLA / CWE-639) - a conta de origem nao pode
+      ser utilizada diretamente a partir da requisicao do cliente.
+    metadata:
+      threat_model: TM-03
+      cwe: "CWE-639"
+      owasp: "API1:2023"
+    pattern-either:
+      - pattern: request.form.get("conta_origem", ...)
+      - pattern: request.form["conta_origem"]
+      - pattern: request.args.get("conta_origem", ...)
+      - pattern: request.args["conta_origem"]
+      - pattern: request.get_json(...).get("conta_origem", ...)
+      - pattern: request.get_json(...)["conta_origem"]
+
+  - id: box-tm04-limite-override-cliente
+    languages:
+      - python
+    severity: ERROR
+    message: >-
+      TM-04 (Manipulacao de Limite) - limite_override nao
+      pode ser aceito da requisicao do cliente.
     metadata:
       threat_model: TM-04
       cwe: "CWE-284"
@@ -12,9 +34,12 @@ rules:
       - pattern: $DADOS["limite_override"]
 
   - id: box-tm06-log-expondo-token-ou-authorization
-    languages: [python]
+    languages:
+      - python
     severity: ERROR
-    message: TM-06 (Exposição de Dados Sensíveis em Log) - nunca registre tokens ou o cabeçalho Authorization nos logs.
+    message: >-
+      TM-06 (Exposicao de Dados Sensiveis em Log) - tokens
+      e o cabecalho Authorization nao devem ser registrados.
     metadata:
       threat_model: TM-06
       cwe: "CWE-532"
@@ -22,5 +47,6 @@ rules:
     pattern-either:
       - pattern: $LOGGER.$LEVEL(..., request.headers.get("Authorization", ...), ...)
       - pattern: $LOGGER.$LEVEL(..., request.headers["Authorization"], ...)
-      - pattern: $LOGGER.$LEVEL(..., f"...{..., token, ...}...", ...)
+      - pattern: $LOGGER.$LEVEL(..., request.cookies.get("box_token", ...), ...)
       - pattern: print(..., request.headers.get("Authorization", ...), ...)
+      - pattern: print(..., request.cookies.get("box_token", ...), ...)
