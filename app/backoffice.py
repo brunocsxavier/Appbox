@@ -3,7 +3,7 @@ import csv
 import io
 import ipaddress
 import math
-import subprocess
+import socket
 
 from flask import Blueprint, render_template, request, g, make_response, redirect, Response
 
@@ -172,8 +172,33 @@ def exportar():
 @bp.route("/diagnostico")
 @login_obrigatorio(perfil="operador")
 def diagnostico():
-    """Ferramenta "temporária" do suporte para testar conectividade com o PSTI."""
-    host = request.args.get("host", "127.0.0.1")
-    # Achado NOVO (não modelado no Dia 01): injeção de comando (CWE-78)
-    saida = os.popen("ping -c 1 " + host).read()
-    return Response(saida or "sem resposta", mimetype="text/plain")
+    """Testa conectividade TCP sem executar comandos do sistema."""
+    host_informado = request.args.get("host", "").strip()
+
+    try:
+        endereco = ipaddress.ip_address(host_informado)
+    except ValueError:
+        return Response(
+            "Host inválido.",
+            status=400,
+            mimetype="text/plain",
+        )
+
+    porta = 443
+
+    try:
+        with socket.create_connection(
+            (str(endereco), porta),
+            timeout=3,
+        ):
+            return Response(
+                f"Conectividade disponível em {endereco}:{porta}",
+                status=200,
+                mimetype="text/plain",
+            )
+    except (TimeoutError, OSError):
+        return Response(
+            f"Sem conectividade em {endereco}:{porta}",
+            status=503,
+            mimetype="text/plain",
+        )

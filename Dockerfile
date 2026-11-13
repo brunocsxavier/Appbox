@@ -1,23 +1,39 @@
-# Core Box — imagem de produção (versão v1 entregue pelo time)
+# Core Box - imagem de producao
 FROM python:3.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV BOX_AMBIENTE=producao
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends iputils-ping curl && \
-    rm -rf /var/lib/apt/lists/*
-
+# Instala primeiro as dependencias para aproveitar o cache do Docker.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+RUN pip install \
+    --no-cache-dir \
+    --requirement requirements.txt
 
-# Remove qualquer vestígio do setuptools (incluindo a versão 70.3.0) de toda a imagem
-RUN pip uninstall -y setuptools && \
-    find / -name "*setuptools*" -exec rm -rf {} + 2>/dev/null || true
+# Copia somente o necessario para executar a aplicacao.
+COPY app/ ./app/
+COPY config/ ./config/
+COPY wsgi.py ./
 
-ENV BOX_AMBIENTE=producao
+# Usuario sem privilegios para executar a aplicacao.
+RUN groupadd --system app \
+    && useradd \
+        --system \
+        --gid app \
+        --home-dir /app \
+        --no-create-home \
+        app \
+    && chown -R app:app /app
+
+USER app
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
 
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "wsgi:app"]

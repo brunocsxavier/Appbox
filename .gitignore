@@ -11,3 +11,13 @@ deploy_key
 
 # Nova chave de deploy
 appbox_deploy
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Relatorios locais
+relatorio-gitleaks.json
+semgrep-local.json
