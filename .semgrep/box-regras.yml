@@ -1,0 +1,26 @@
+rules:
+  - id: box-tm04-limite-override-cliente
+    languages: [python]
+    severity: ERROR
+    message: TM-04 (Manipulação de Limite) - limite_override não pode ser aceito da requisição do cliente.
+    metadata:
+      threat_model: TM-04
+      cwe: "CWE-284"
+      owasp: "API5:2023"
+    pattern-either:
+      - pattern: $DADOS.get("limite_override", ...)
+      - pattern: $DADOS["limite_override"]
+
+  - id: box-tm06-log-expondo-token-ou-authorization
+    languages: [python]
+    severity: ERROR
+    message: TM-06 (Exposição de Dados Sensíveis em Log) - nunca registre tokens ou o cabeçalho Authorization nos logs.
+    metadata:
+      threat_model: TM-06
+      cwe: "CWE-532"
+      owasp: "API3:2023"
+    pattern-either:
+      - pattern: $LOGGER.$LEVEL(..., request.headers.get("Authorization", ...), ...)
+      - pattern: $LOGGER.$LEVEL(..., request.headers["Authorization"], ...)
+      - pattern: $LOGGER.$LEVEL(..., f"...{..., token, ...}...", ...)
+      - pattern: print(..., request.headers.get("Authorization", ...), ...)
