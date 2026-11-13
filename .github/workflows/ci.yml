@@ -1,121 +1,109 @@
-name: CI/CD - core-box (8 Etapas DevSecOps)
+name: DevSecOps Pipeline
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - develop
+
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - develop
+
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
-  security-events: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ==============================================================================
-  # ETAPA 1 — Verificação de segredos (Gitleaks)
-  # Artefato: relatorio-gitleaks | Política: Bloqueia
-  # ==============================================================================
-  etapa-01-gitleaks:
-    name: 1. Verificação de segredos (Gitleaks)
+
+  # ============================================================
+  # ETAPA 1 - VERIFICAÇÃO DE SEGREDOS
+  # Artefato: relatorio-gitleaks
+  # Política: bloqueia
+  # ============================================================
+  gitleaks:
+    name: "1 - Gitleaks"
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout histórico completo
+      - name: Checkout com histórico completo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Executar Gitleaks (histórico completo -> JSON)
-        id: gitleaks
-        continue-on-error: true
+      - name: Instalar Gitleaks
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:latest \
-            detect --source="." --log-opts="--all" \
-            --report-format=json --report-path=gitleaks-report.json --exit-code=1
+          GITLEAKS_VERSION="8.24.2"
 
-      - name: Publicar artefato relatorio-gitleaks
+          curl -sSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o gitleaks.tar.gz
+
+          tar -xzf gitleaks.tar.gz
+          sudo mv gitleaks /usr/local/bin/gitleaks
+
+          gitleaks version
+
+      - name: Executar Gitleaks no histórico completo
+        id: gitleaks-scan
+        shell: bash
+        run: |
+          set +e
+
+          gitleaks git . \
+            --report-format json \
+            --report-path relatorio-gitleaks.json \
+            --redact
+
+          EXIT_CODE=$?
+
+          if [ ! -f relatorio-gitleaks.json ]; then
+            echo "[]" > relatorio-gitleaks.json
+          fi
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit 0
+
+      - name: Publicar relatório Gitleaks
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-gitleaks
-          path: gitleaks-report.json
+          path: relatorio-gitleaks.json
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Aplicar gate de bloqueio
-        if: steps.gitleaks.outcome == 'failure'
-        run: exit 1
-
-  # ==============================================================================
-  # ETAPA 2 — Análise estática SAST (Semgrep)
-  # Artefato: relatorio-semgrep | Política: Bloqueia (ERROR) / WARNING triados
-  # ==============================================================================
-  etapa-02-semgrep:
-    name: 2. Análise estática SAST (Semgrep)
-    runs-on: ubuntu-latest
-    needs: etapa-01-gitleaks
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configurar Python e instalar Semgrep
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Executar Semgrep SAST
-        id: semgrep
-        continue-on-error: true
+      - name: Aplicar gate de segredos
+        if: always()
         run: |
-          pip install semgrep
-          EXTRA_CONFIG=""
-          if [ -d ".semgrep" ] && [ -n "$(ls -A .semgrep)" ]; then
-            EXTRA_CONFIG="--config .semgrep/"
+          EXIT_CODE="${{ steps.gitleaks-scan.outputs.exit_code }}"
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Gitleaks encontrou segredo não tratado no histórico."
+            exit "$EXIT_CODE"
           fi
 
-          # Roda todas as regras para gerar o JSON completo (incluindo WARNING)
-          semgrep scan \
-            --config p/python \
-            --config p/flask \
-            --config p/secrets \
-            --config p/dockerfile \
-            $EXTRA_CONFIG \
-            --metrics off \
-            --json-output=semgrep-report.json
+          echo "Nenhum segredo não tratado foi encontrado."
 
-          # Bloqueia apenas se houver achados de severidade ERROR
-          python3 -c '
-          import json, sys
-          with open("semgrep-report.json") as f:
-              data = json.load(f)
-          errors = [r for r in data.get("results", []) if r.get("extra", {}).get("severity") == "ERROR"]
-          warnings = [r for r in data.get("results", []) if r.get("extra", {}).get("severity") == "WARNING"]
-          print(f"Total ERROR: {len(errors)} | Total WARNING (triados): {len(warnings)}")
-          if errors:
-              sys.exit(1)
-          '
-
-      - name: Publicar artefato relatorio-semgrep
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-semgrep
-          path: semgrep-report.json
-
-      - name: Aplicar gate de bloqueio (ERROR)
-        if: steps.semgrep.outcome == 'failure'
-        run: exit 1
-
-  # ==============================================================================
-  # ETAPA 3 — Build, dependências e artefato (pip + pytest)
-  # Artefato: relatorio-03-build | Política: Bloqueia (build/testes)
-  # ==============================================================================
-  etapa-03-build-pytest:
-    name: 3. Build, dependências e artefato (pytest)
+  # ============================================================
+  # ETAPA 2 - SAST
+  # Artefato: relatorio-semgrep
+  # Política: bloqueia ERROR; WARNING deve ser triado
+  # ============================================================
+  semgrep:
+    name: "2 - Semgrep SAST"
     runs-on: ubuntu-latest
-    needs: etapa-02-semgrep
+    needs:
+      - gitleaks
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,169 +111,611 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
+
+      - name: Instalar Semgrep
+        run: |
+          python -m pip install --upgrade pip
+          pip install semgrep
+          semgrep --version
+
+      - name: Executar análise completa
+        id: semgrep-full
+        shell: bash
+        run: |
+          set +e
+
+          semgrep scan \
+            --config p/python \
+            --config p/flask \
+            --config p/secrets \
+            --config p/dockerfile \
+            --config .semgrep/ \
+            --metrics off \
+            --json \
+            --output relatorio-semgrep.json
+
+          SCAN_EXIT_CODE=$?
+
+          if [ ! -f relatorio-semgrep.json ]; then
+            echo '{"results":[],"errors":[]}' > relatorio-semgrep.json
+          fi
+
+          echo "scan_exit_code=$SCAN_EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit 0
+
+      - name: Publicar relatório Semgrep
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-semgrep
+          path: relatorio-semgrep.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Validar execução do Semgrep
+        run: |
+          EXIT_CODE="${{ steps.semgrep-full.outputs.scan_exit_code }}"
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::O Semgrep não conseguiu concluir a análise."
+            exit "$EXIT_CODE"
+          fi
+
+      - name: Gate para severidade ERROR
+        shell: bash
+        run: |
+          ERROR_COUNT=$(python - <<'PY'
+          import json
+
+          with open("relatorio-semgrep.json", encoding="utf-8") as arquivo:
+              dados = json.load(arquivo)
+
+          resultados = dados.get("results", [])
+
+          erros = [
+              resultado
+              for resultado in resultados
+              if resultado.get("extra", {})
+                          .get("metadata", {})
+                          .get("severity",
+                               resultado.get("extra", {}).get("severity", ""))
+                          .upper() == "ERROR"
+          ]
+
+          print(len(erros))
+          PY
+          )
+
+          echo "Achados ERROR: $ERROR_COUNT"
+
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "::error::Semgrep encontrou $ERROR_COUNT achado(s) ERROR."
+            exit 1
+          fi
+
+      - name: Registrar WARNING para triagem
+        if: always()
+        shell: bash
+        run: |
+          WARNING_COUNT=$(python - <<'PY'
+          import json
+
+          with open("relatorio-semgrep.json", encoding="utf-8") as arquivo:
+              dados = json.load(arquivo)
+
+          resultados = dados.get("results", [])
+
+          warnings = [
+              resultado
+              for resultado in resultados
+              if resultado.get("extra", {})
+                          .get("metadata", {})
+                          .get("severity",
+                               resultado.get("extra", {}).get("severity", ""))
+                          .upper() == "WARNING"
+          ]
+
+          print(len(warnings))
+          PY
+          )
+
+          echo "### Semgrep" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Achados WARNING para triagem: $WARNING_COUNT" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================
+  # ETAPA 3 - BUILD, DEPENDÊNCIAS, TESTES E ARTEFATO
+  # Artefato: relatorio-03-build
+  # Política: bloqueia
+  # ============================================================
+  build_test:
+    name: "3 - Build e testes"
+    runs-on: ubuntu-latest
+    needs:
+      - semgrep
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
 
       - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt
           pip install pytest
 
-      - name: Executar testes (JUnit XML)
-        id: pytest
-        continue-on-error: true
+      - name: Executar todos os testes
         run: |
-          pytest --junitxml=junit.xml
+          mkdir -p build-report
 
-      - name: Empacotar aplicação com SHA-256
-        if: steps.pytest.outcome == 'success'
+          pytest \
+            --junitxml=build-report/junit.xml
+
+      - name: Empacotar aplicação
         run: |
           mkdir -p dist
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          tar --exclude='./.git' \
-              --exclude='./.github' \
-              --exclude='./tests' \
-              --exclude='./dist' \
-              --exclude='./junit.xml' \
-              -czvf dist/core-box-sha-${SHORT_SHA}.tar.gz .
-          cd dist
-          sha256sum core-box-sha-${SHORT_SHA}.tar.gz > core-box-sha-${SHORT_SHA}.tar.gz.sha256
 
-      - name: Publicar artefato relatorio-03-build
+          tar \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="dist" \
+            --exclude="build-report" \
+            --exclude="__pycache__" \
+            --exclude=".pytest_cache" \
+            -czf dist/aplicacao.tar.gz .
+
+      - name: Gerar SHA-256
+        run: |
+          sha256sum dist/aplicacao.tar.gz \
+            | tee dist/aplicacao.tar.gz.sha256
+
+      - name: Copiar arquivos para o relatório
+        if: always()
+        run: |
+          mkdir -p build-report
+
+          if [ -f dist/aplicacao.tar.gz ]; then
+            cp dist/aplicacao.tar.gz build-report/
+          fi
+
+          if [ -f dist/aplicacao.tar.gz.sha256 ]; then
+            cp dist/aplicacao.tar.gz.sha256 build-report/
+          fi
+
+      - name: Publicar relatório do build
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-03-build
-          path: |
-            junit.xml
-            dist/
+          path: build-report/
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Aplicar gate de bloqueio
-        if: steps.pytest.outcome == 'failure'
-        run: exit 1
-
-  # ==============================================================================
-  # ETAPA 4 — SCA de dependências (Trivy fs + SBOM CycloneDX)
-  # Artefato: relatorio-04-trivy-sca | Política: Bloqueia HIGH/CRITICAL
-  # ==============================================================================
-  etapa-04-trivy-sca:
-    name: 4. SCA de dependências (Trivy fs)
+  # ============================================================
+  # ETAPA 4 - SCA DE DEPENDÊNCIAS
+  # Artefato: relatorio-04-trivy-sca
+  # Política: bloqueia HIGH/CRITICAL com correção disponível
+  # ============================================================
+  trivy_sca:
+    name: "4 - Trivy SCA"
     runs-on: ubuntu-latest
-    needs: etapa-03-build-pytest
+    needs:
+      - build_test
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Gerar relatório completo SCA e SBOM CycloneDX
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Criar diretório do relatório
+        run: |
+          mkdir -p trivy-sca-report
+
+      - name: Gerar relatório completo
+        uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'json'
-          output: 'trivy-sca-completo.json'
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: trivy-sca-report/trivy-sca-completo.json
+          exit-code: "0"
 
       - name: Gerar SBOM CycloneDX
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'cyclonedx'
-          output: 'sbom-cyclonedx.json'
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: trivy-sca-report/sbom.cdx.json
+          exit-code: "0"
 
-      - name: Gate SCA (HIGH/CRITICAL com correção)
-        id: trivy_fs_gate
+      - name: Aplicar gate HIGH e CRITICAL corrigíveis
+        id: trivy-sca-gate
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'HIGH,CRITICAL'
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          format: table
+          output: trivy-sca-report/trivy-sca-gate.txt
+          exit-code: "1"
 
-      - name: Publicar artefato relatorio-04-trivy-sca
+      - name: Publicar SCA e SBOM
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-04-trivy-sca
-          path: |
-            trivy-sca-completo.json
-            sbom-cyclonedx.json
+          path: trivy-sca-report/
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Aplicar gate de bloqueio
-        if: steps.trivy_fs_gate.outcome == 'failure'
-        run: exit 1
+      - name: Validar gate do Trivy SCA
+        if: always()
+        run: |
+          if [ "${{ steps.trivy-sca-gate.outcome }}" != "success" ]; then
+            echo "::error::Trivy encontrou vulnerabilidades HIGH ou CRITICAL com correção disponível."
+            exit 1
+          fi
 
-  # ==============================================================================
-  # ETAPA 5 — Docker build + push (Docker Buildx + GHCR)
-  # Artefato: docker-build | Política: Bloqueia (falha de build)
-  # ==============================================================================
-  etapa-05-docker-build:
-    name: 5. Docker build + push (GHCR)
+  # ============================================================
+  # ETAPA 5 - DOCKER BUILD E PUSH PARA GHCR
+  # Artefato: docker-build
+  # Política: bloqueia se o build/push falhar
+  # ============================================================
+  docker_build:
+    name: "5 - Docker build e push"
     runs-on: ubuntu-latest
-    needs: etapa-04-trivy-sca
+    needs:
+      - trivy_sca
+
+    permissions:
+      contents: read
+      packages: write
+
     outputs:
-      image_digest: ${{ steps.build_push.outputs.digest }}
-      image_tag: ${{ steps.meta.outputs.short_sha }}
-      full_image_ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+      image_ref: ${{ steps.image.outputs.image }}@${{ steps.build.outputs.digest }}
+      image_tag: ${{ steps.image.outputs.image }}:${{ steps.tag.outputs.tag }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Definir tag sha-xxxxxxx e baixar nome da imagem
-        id: meta
+      - name: Definir tag da imagem
+        id: tag
         run: |
-          SHORT_SHA="sha-$(echo "${{ github.sha }}" | cut -c1-7)"
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "repo_lower=${REPO_LOWER}" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Configurar Docker Buildx
+      - name: Normalizar nome da imagem
+        id: image
+        shell: bash
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME}"
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Preparar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login no GitHub Container Registry (GHCR)
+      - name: Login no GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build e Push para GHCR
-        id: build_push
+      - name: Build e push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo_lower }}:${{ steps.meta.outputs.short_sha }}
+          tags: |
+            ${{ steps.image.outputs.image }}:${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Salvar metadados do build e digest
+      - name: Registrar dados da imagem
         run: |
-          cat <<EOF > docker-build-metadata.json
-          {
-            "image": "${{ env.REGISTRY }}/${{ steps.meta.outputs.repo_lower }}",
-            "tag": "${{ steps.meta.outputs.short_sha }}",
-            "digest": "${{ steps.build_push.outputs.digest }}",
-            "ref": "${{ env.REGISTRY }}/${{ steps.meta.outputs.repo_lower }}@${{ steps.build_push.outputs.digest }}"
-          }
-          EOF
-          cat docker-build-metadata.json
+          mkdir -p docker-build-report
 
-      - name: Publicar artefato docker-build
+          echo "image=${{ steps.image.outputs.image }}" \
+            > docker-build-report/image.txt
+
+          echo "tag=${{ steps.tag.outputs.tag }}" \
+            > docker-build-report/tag.txt
+
+          echo "digest=${{ steps.build.outputs.digest }}" \
+            > docker-build-report/digest.txt
+
+          echo "image_ref=${{ steps.image.outputs.image }}@${{ steps.build.outputs.digest }}" \
+            > docker-build-report/image-ref.txt
+
+      - name: Publicar dados do Docker build
         uses: actions/upload-artifact@v4
         with:
           name: docker-build
-          path: docker-build-metadata.json
+          path: docker-build-report/
+          if-no-files-found: error
+          retention-days: 30
 
-  # ==============================================================================
-  # ETAPA 6 — Scan da imagem (Trivy image pelo digest da etapa 5)
-  # Artefato: trivy-image | Política: Bloqueia HIGH/CRITICAL
-  # ==============================================================================
-  etapa-06-trivy-image:
-    name: 6. Scan da imagem (Trivy image)
+  # ============================================================
+  # ETAPA 6 - SCAN DA IMAGEM
+  # Artefato: trivy-image
+  # Política: bloqueia HIGH/CRITICAL com correção
+  # ============================================================
+  trivy_image:
+    name: "6 - Trivy image"
     runs-on: ubuntu-latest
-    needs: etapa-05-docker-build
+    needs:
+      - docker_build
+
+    permissions:
+      contents: read
+      packages: read
+
     steps:
       - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Criar diretório do relatório
+        run: |
+          mkdir -p trivy-image-report
+
+      - name: Gerar relatório completo da imagem
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.docker_build.outputs.image_ref }}
+          format: json
+          output: trivy-image-report/trivy-image-completo.json
+          exit-code: "0"
+
+      - name: Aplicar gate HIGH e CRITICAL corrigíveis
+        id: trivy-image-gate
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.docker_build.outputs.image_ref }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          output: trivy-image-report/trivy-image-gate.txt
+          exit-code: "1"
+
+      - name: Publicar relatório da imagem
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image
+          path: trivy-image-report/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Validar gate da imagem
+        if: always()
+        run: |
+          if [ "${{ steps.trivy-image-gate.outcome }}" != "success" ]; then
+            echo "::error::A imagem contém vulnerabilidades HIGH ou CRITICAL com correção disponível."
+            exit 1
+          fi
+
+  # ============================================================
+  # ETAPA 7 - HOMOLOGAÇÃO EFÊMERA E DAST
+  # Artefato: homologacao-zap
+  # Política: informativo
+  # ============================================================
+  homologacao_zap:
+    name: "7 - Homologação e ZAP"
+    runs-on: ubuntu-latest
+    needs:
+      - docker_build
+      - trivy_image
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Baixar imagem pelo digest
+        run: |
+          docker pull "${{ needs.docker_build.outputs.image_ref }}"
+
+      - name: Subir homologação efêmera
+        run: |
+          docker run -d \
+            --name aplicacao-homologacao \
+            -p 8000:8000 \
+            "${{ needs.docker_build.outputs.image_ref }}"
+
+      - name: Aguardar endpoint de health
+        shell: bash
+        run: |
+          for tentativa in $(seq 1 30); do
+            if curl --fail --silent http://98.92.173.71:8000/health; then
+              echo
+              echo "Aplicação disponível para o ZAP."
+              exit 0
+            fi
+
+            echo "Tentativa ${tentativa}/30..."
+            sleep 5
+          done
+
+          echo "::error::A aplicação não respondeu em /health."
+          docker logs aplicacao-homologacao
+          exit 1
+
+      - name: Criar diretório do ZAP
+        run: |
+          mkdir -p zap-report
+
+      - name: Executar ZAP Baseline
+        id: zap
+        continue-on-error: true
+        run: |
+          chmod 777 zap-report
+
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}/zap-report:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://98.92.173.71:8000 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -w zap-report.md \
+            -I
+
+      - name: Coletar logs da homologação
+        if: always()
+        run: |
+          docker logs aplicacao-homologacao \
+            > zap-report/aplicacao.log 2>&1 || true
+
+      - name: Publicar relatório ZAP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homologacao-zap
+          path: zap-report/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Encerrar homologação efêmera
+        if: always()
+        run: |
+          docker rm -f aplicacao-homologacao || true
+
+      - name: Registrar resultado informativo
+        if: always()
+        run: |
+          if [ "${{ steps.zap.outcome }}" != "success" ]; then
+            echo "::warning::O ZAP encontrou alertas. A etapa é informativa e não bloqueará a esteira."
+          fi
+
+  # ============================================================
+  # ETAPA 8 - APROVAÇÃO E PRODUÇÃO
+  # Environment: producao
+  # Deploy: deploy/deploy.sh
+  # ============================================================
+  producao:
+    name: "8 - Aprovação e produção"
+    runs-on: ubuntu-latest
+    needs:
+      - docker_build
+      - trivy_image
+      - homologacao_zap
+
+    environment:
+      name: producao
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan -p "${{ secrets.VPS_SSH_PORT }}" \
+            "${{ secrets.VPS_HOST }}" \
+            >> ~/.ssh/known_hosts
+
+      - name: Executar deploy na VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          IMAGE_REF: ${{ needs.docker_build.outputs.image_ref }}
+        run: |
+          chmod +x deploy/deploy.sh
+          ./deploy/deploy.sh
+
+      - name: Smoke test em produção
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 10 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "${PRODUCTION_URL}/health"
+
+  # ============================================================
+  # RESUMO FINAL
+  # Sempre executa
+  # ============================================================
+  resumo:
+    name: "Resumo da esteira"
+    runs-on: ubuntu-latest
+
+    if: always()
+
+    needs:
+      - gitleaks
+      - semgrep
+      - build_test
+      - trivy_sca
+      - docker_build
+      - trivy_image
+      - homologacao_zap
+      - producao
+
+    steps:
+      - name: Gerar resumo
+        shell: bash
+        run: |
+          {
+            echo "# Resumo da esteira DevSecOps"
+            echo
+            echo "| Etapa | Ferramenta | Política | Resultado |"
+            echo "|---|---|---|---|"
+            echo "| 1 - Segredos | Gitleaks | Bloqueia | ${{ needs.gitleaks.result }} |"
+            echo "| 2 - SAST | Semgrep | Bloqueia ERROR | ${{ needs.semgrep.result }} |"
+            echo "| 3 - Build e testes | pip + pytest | Bloqueia | ${{ needs.build_test.result }} |"
+            echo "| 4 - SCA | Trivy fs | Bloqueia HIGH/CRITICAL corrigíveis | ${{ needs.trivy_sca.result }} |"
+            echo "| 5 - Docker | Buildx + GHCR | Bloqueia | ${{ needs.docker_build.result }} |"
+            echo "| 6 - Imagem | Trivy image | Bloqueia HIGH/CRITICAL corrigíveis | ${{ needs.trivy_image.result }} |"
+            echo "| 7 - Homologação/DAST | OWASP ZAP | Informativo | ${{ needs.homologacao_zap.result }} |"
+            echo "| 8 - Produção | GitHub Environments + SSH | Aprovação manual | ${{ needs.producao.result }} |"
+            echo
+            echo "## Imagem"
+            echo
+            echo "- Imagem: \`${{ needs.docker_build.outputs.image }}\`"
+            echo "- Tag: \`${{ needs.docker_build.outputs.image_tag }}\`"
+            echo "- Digest: \`${{ needs.docker_build.outputs.digest }}\`"
+            echo "- Referência implantável: \`${{ needs.docker_build.outputs.image_ref }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
