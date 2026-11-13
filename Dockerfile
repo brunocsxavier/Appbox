@@ -1,25 +1,68 @@
-# Core Box - imagem de producao
-FROM python:3.11-slim-bookworm
+# ============================================================
+# Stage 1 - Builder
+# ============================================================
+
+FROM python:3.12-slim AS builder
+
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /build
+
+COPY requirements.txt .
+
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/python -m pip install --no-cache-dir --upgrade pip \
+    && /opt/venv/bin/python -m pip install \
+        --no-cache-dir \
+        --requirement requirements.txt
+
+RUN /opt/venv/bin/python -m pip uninstall -y \
+        pip \
+        setuptools \
+        wheel
+
+# ============================================================
+# Stage 2 - Runtime
+# ============================================================
+
+FROM python:3.12-slim
+
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV BOX_AMBIENTE=producao
+ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
-# Instala primeiro as dependencias para aproveitar o cache do Docker.
-COPY requirements.txt .
+# Copia somente o virtualenv pronto.
+COPY --from=builder /opt/venv /opt/venv
 
-RUN pip install \
-    --no-cache-dir \
-    --requirement requirements.txt
-
-# Copia somente o necessario para executar a aplicacao.
+# Copia somente a aplicacao necessaria.
 COPY app/ ./app/
 COPY config/ ./config/
 COPY wsgi.py ./
 
-# Usuario sem privilegios para executar a aplicacao.
+# Remove ferramentas de packaging globais do runtime.
+RUN rm -rf \
+    /usr/local/lib/python3.12/site-packages/pip \
+    /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+    /usr/local/lib/python3.12/site-packages/setuptools \
+    /usr/local/lib/python3.12/site-packages/setuptools-*.dist-info \
+    /usr/local/lib/python3.12/site-packages/wheel \
+    /usr/local/lib/python3.12/site-packages/wheel-*.dist-info
+
+
+
+# Usuario nao-root.
 RUN groupadd --system app \
     && useradd \
         --system \
