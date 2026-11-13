@@ -1,6 +1,7 @@
 """Login, recuperação de senha e troca de celular (telas T1 e T2 do Dia 01)."""
 import datetime
 import random
+import time
 
 from flask import Blueprint, render_template, request, make_response, jsonify, redirect
 
@@ -10,19 +11,62 @@ from app.seguranca import verificar_senha, emitir_token, hash_senha
 
 bp = Blueprint("auth", __name__)
 
+_tentativas_login = {}
+_bloqueios_login = {}
+
+MAX_TENTATIVAS = 5
+TEMPO_BLOQUEIO_SEGUNDOS = 1
 
 def _autenticar(cpf, senha):
     """Retorna (usuario, erro, status_http)."""
     db = get_db()
-    usuario = db.execute("SELECT * FROM usuarios WHERE cpf = ?", (cpf,)).fetchone()
-    # TM-23 (CWE-204): mensagens e status diferentes revelam quem é cliente
-    if usuario is None:
-        return None, "CPF não cadastrado no Banco Box.", 404
-    # TM-01 (CWE-307): nenhuma limitação de tentativas
-    if not verificar_senha(senha, usuario["senha_hash"]):
-        return None, "Senha incorreta. Tente novamente.", 401
-    return usuario, None, 200
 
+    cpf = (cpf or "").strip()
+    agora = time.monotonic()
+
+    bloqueado_ate = _bloqueios_login.get(cpf)
+
+    if bloqueado_ate is not None:
+        if agora < bloqueado_ate:
+            return (
+                None,
+                "Muitas tentativas de login. Tente novamente mais tarde.",
+                429,
+            )
+
+        # O período de bloqueio terminou.
+        _bloqueios_login.pop(cpf, None)
+        _tentativas_login.pop(cpf, None)
+
+    usuario = db.execute(
+        "SELECT * FROM usuarios WHERE cpf = ?",
+        (cpf,),
+    ).fetchone()
+
+    credenciais_invalidas = (
+        usuario is None
+        or not verificar_senha(senha, usuario["senha_hash"])
+    )
+
+    if credenciais_invalidas:
+        tentativas = _tentativas_login.get(cpf, 0) + 1
+        _tentativas_login[cpf] = tentativas
+
+        if tentativas >= MAX_TENTATIVAS:
+            _bloqueios_login[cpf] = (
+                agora + TEMPO_BLOQUEIO_SEGUNDOS
+            )
+
+        return (
+            None,
+            "CPF ou senha inválidos.",
+            401,
+        )
+
+    _tentativas_login.pop(cpf, None)
+    _bloqueios_login.pop(cpf, None)
+
+    return usuario, None, 200
 
 def _vincular_dispositivo(usuario):
     # TM-25: vínculo automático de qualquer dispositivo, sem step-up

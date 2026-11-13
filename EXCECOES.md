@@ -6,4 +6,4 @@
 
 | ID | Gate | Achado (regra / CVE / teste) | Ameaça (TM) | Justificativa | Controle compensatório | Dono | Prazo | Aprovado por |
 |---|---|---|---|---|---|---|---|---|
-| EXC-001 | (exemplo) Gitleaks | private-key em commit antigo | TM-15 | Chave de homologação **rotacionada e revogada** em AAAA-MM-DD | Certificado revogado na AC; novo em cofre | Grupo X | AAAA-MM-DD | (líder técnico) |
+| EXC-001 | Gitleaks | `jwt` em `tests/fixtures/token_exemplo_expirado.txt` | N/A | JWT expirado/fictício mantido exclusivamente como fixture para testes automatizados; não representa credencial válida de produção | Supressão restrita ao fingerprint específico no `.gitleaksignore`; `tests/` continua sendo analisado; segredos reais continuam bloqueando a esteira | Grupo Core Box | 2026-11-30 | Líder do grupo |

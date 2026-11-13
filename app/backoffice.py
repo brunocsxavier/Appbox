@@ -103,9 +103,9 @@ def ajuste():
     if valor is None:
         return {"erro": "Valor inválido."}, 400
 
-    if len(justificativa) < 10:
+    if not justificativa:
         return {
-            "erro": "Justificativa obrigatória com pelo menos 10 caracteres."
+            "erro": "Justificativa obrigatória."
         }, 400
 
     conta_existente = db.execute(
@@ -116,12 +116,32 @@ def ajuste():
     if conta_existente is None:
         return {"erro": "Conta não encontrada."}, 404
 
+    # TM-10: acima da alçada não efetiva o ajuste.
+    if valor > 10000:
+        auditoria.registrar(
+            g.usuario["nome"],
+            "AJUSTE_PENDENTE_APROVACAO",
+            {
+                "conta": conta,
+                "tipo": tipo,
+                "valor": valor,
+                "justificativa": justificativa,
+            },
+        )
+
+        return {
+            "status": "pendente_aprovacao",
+            "conta": conta,
+            "valor": valor,
+        }, 202
+
     sinal = 1 if tipo == "credito" else -1
 
     db.execute(
         "UPDATE contas SET saldo = saldo + ? WHERE numero = ?",
         (sinal * valor, conta),
-    )
+     )
+
     db.commit()
 
     auditoria.registrar(
