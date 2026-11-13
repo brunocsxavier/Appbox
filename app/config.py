@@ -27,11 +27,11 @@ class Config:
 
     # TM-15 / TM-16: segredos fixos no código (o .env "foi removido")
     SECRET_KEY = "box-flask-secret-2026"
-    JWT_SECRET = REMOVIDO_JWT_SECRET
+    JWT_SECRET = os.getenv("JWT_SECRET")
     JWT_EXPIRACAO_HORAS = 24 * 7
 
     PSTI_URL = _cfg["integracoes"]["psti_url"]
-    PSTI_API_KEY = REMOVIDO_PSTI_API_KEY
+    PSTI_API_KEY = os.getenv("PSTI_API_KEY")
     SMS_GATEWAY_TOKEN = "smsbox_tk_4Qz8Lm2Rv7Xw1Np6Ts3Yb9Kc5Hd0Gf"
 
     LIMITE_DIURNO_PADRAO = _cfg["pix"]["limite_diurno"]
