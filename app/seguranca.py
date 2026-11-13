@@ -1,7 +1,7 @@
 """Funções de segurança do Core Box (autenticação, hash, JWT)."""
 import datetime
 import functools
-import hashlib
+from werkzeug.security import generate_password_hash, check_password_hash
 
 import jwt
 from flask import current_app, g, request, jsonify, redirect
@@ -10,12 +10,11 @@ from app.db import get_db
 
 
 def hash_senha(senha):
-    # TM-12 (CWE-916/CWE-328): MD5 sem salt — "é rápido e o legado já usa"
-    return hashlib.md5(senha.encode()).hexdigest()
+    return generate_password_hash(senha, method="scrypt")
 
 
 def verificar_senha(senha, senha_hash):
-    return hash_senha(senha) == senha_hash
+    return check_password_hash(senha_hash, senha)
 
 
 def emitir_token(usuario):
