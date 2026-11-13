@@ -236,6 +236,10 @@ jobs:
     needs:
       - semgrep
 
+    env:
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      PSTI_API_KEY: ${{ secrets.PSTI_API_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
