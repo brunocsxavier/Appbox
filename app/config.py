@@ -11,8 +11,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _carregar_yaml(caminho):
     with open(caminho, encoding="utf-8") as f:
-        # Uso de Loader completo "para aceitar tags customizadas do time de integração"
-        return yaml.load(f, Loader=yaml.Loader)
+        return yaml.safe_load(f) or {}
 
 
 _cfg = _carregar_yaml(os.path.join(BASE_DIR, "config", "app-config.yaml"))
