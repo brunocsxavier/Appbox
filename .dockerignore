@@ -1,11 +1,43 @@
-deploy_corebox
-deploy_key
-*.pem
-*.key
-.env*
+# Git
 .git
 .github
-.venv
-venv
-__pycache__
+.gitignore
+
+# Chaves e credenciais
+deploy_corebox
+deploy_key
+appbox_deploy
+appbox_deploy.pub
+*.pem
+*.key
+.env
+.env.*
+.gitleaksignore
+
+# Python
+.venv/
+venv/
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Testes
+tests/
+
+# Relatorios e artefatos locais
+relatorio-*.json
+semgrep-local.json
+junit.xml
+dist/
+build/
+
+# IDE / sistema operacional
+.vscode/
+.idea/
+.DS_Store
+
+# Documentacao que nao precisa ir para producao
+EXCECOES.md
+RELATORIO-DIA02.md
